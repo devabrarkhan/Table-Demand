@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Abrar's Black Executive Desk - Movable Edition</title>
+    
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: 'Segoe UI', sans-serif; }
+        
+        /* UI Overlay */
+        #ui-container {
+            position: absolute; top: 20px; left: 20px;
+            width: 300px;
+            pointer-events: none;
+            display: flex; flex-direction: column; gap: 10px;
+            z-index: 10;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            color: #111;
+            padding: 15px 20px;
+            border-radius: 12px;
+            border: 1px solid #e5e5e5;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            pointer-events: auto;
+        }
+
+        h1 { margin: 0 0 5px 0; font-size: 18px; font-weight: 800; color: #000; letter-spacing: -0.5px; }
+        p { margin: 0 0 15px 0; font-size: 13px; color: #555; line-height: 1.4; }
+
+        .controls { display: flex; gap: 10px; }
+        
+        button {
+            flex: 1;
+            background: #111; color: white; border: none;
+            padding: 10px 0; border-radius: 6px; font-weight: 600; font-size: 12px;
+            cursor: pointer; transition: all 0.2s;
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        button:hover { background: #333; transform: translateY(-1px); }
+        button.secondary { background: #e0e0e0; color: #111; }
+        button.secondary:hover { background: #d0d0d0; }
+
+        .badge {
+            display: inline-block; padding: 4px 8px; background: #007AFF; color: white;
+            border-radius: 4px; font-size: 10px; font-weight: bold; margin-bottom: 10px;
+        }
+        
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 16px; font-weight: 600; color: #333; pointer-events: none;
+        }
+    </style>
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="ui-container">
+        <div class="card">
+            <span class="badge">DRAG & DROP ENABLED</span>
+            <h1>Abrar's Black Onyx Executive</h1>
+            <p>  If you liked this, Hire me via visiting <strong><a href="https://constabrar.in/">constabrar.in</a> or via whatsapp <a href="https://wa.me/918637213741?text=Hello%20Constant%20Abrar,%20I%20want%20a%203d%20model%20web%20page%20for%20my%20product!">+91 8637213741</a></strong>. Starting @499 per product.</p>
+            <div class="controls">
+                <button id="btn-reset">Reset Camera</button>
+            </div>
+        </div>
+
+    </div>
+    
+    <div id="loading">Building Scene...</div>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { DragControls } from 'three/addons/controls/DragControls.js';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+
+        // --- 1. HIGH-CONTRAST BLACK WOOD TEXTURE ---
+        function createBlackWoodTexture() {
+            const size = 1024;
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            // Base: Very Dark Grey (Not pure black, to allow lighting)
+            ctx.fillStyle = '#1a1a1a'; 
+            ctx.fillRect(0, 0, size, size);
+
+            // Grain: Lighter Grey strokes
+            ctx.globalAlpha = 0.15;
+            ctx.strokeStyle = '#333333'; 
+            ctx.lineWidth = 2;
+
+            for (let i = 0; i < 800; i++) {
+                ctx.beginPath();
+                const x = Math.random() * size;
+                ctx.moveTo(x, 0);
+                // Wavy vertical grain
+                ctx.bezierCurveTo(x + (Math.random()-0.5)*50, size/3, x + (Math.random()-0.5)*50, size*0.6, x + (Math.random()-0.5)*100, size);
+                ctx.stroke();
+            }
+            
+            // Noise for matte finish
+            const id = ctx.getImageData(0,0,size,size);
+            const d = id.data;
+            for(let i=0; i<d.length; i+=4){
+                const n = (Math.random()-0.5)*20;
+                d[i] = Math.max(0, d[i]+n); 
+                d[i+1] = Math.max(0, d[i+1]+n); 
+                d[i+2] = Math.max(0, d[i+2]+n);
+            }
+            ctx.putImageData(id,0,0);
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        // --- 2. SCENE SETUP ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f0f0); // Soft grey/white bg
+
+        const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 5000);
+        camera.position.set(200, 180, -200); // Start looking at the BACK to show the fix
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // --- 3. LIGHTING (Critical for Black Objects) ---
+        // Ambient: High intensity to prevent "black holes"
+        scene.add(new THREE.AmbientLight(0xffffff, 1.2));
+
+        // Key Light (Sun)
+        const mainLight = new THREE.DirectionalLight(0xfffaf0, 1.5);
+        mainLight.position.set(100, 200, 100);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048; mainLight.shadow.mapSize.height = 2048;
+        scene.add(mainLight);
+
+        // Rim Light (Backlight): Creates a white edge on the black desk so shape is defined
+        const rimLight = new THREE.DirectionalLight(0xbadfff, 1.0);
+        rimLight.position.set(-100, 50, -100);
+        scene.add(rimLight);
+        
+        // Fill Light
+        const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        fillLight.position.set(0, 50, 200);
+        scene.add(fillLight);
+
+        // --- 4. MATERIALS ---
+        const texWood = createBlackWoodTexture();
+        const matBlackWood = new THREE.MeshStandardMaterial({ 
+            map: texWood, 
+            color: 0xffffff, 
+            roughness: 0.6, // Matte finish
+            metalness: 0.1 
+        });
+        
+        const matChrome = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.1, metalness: 1.0 });
+        const matMatteBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+        const matScreen = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.2, metalness: 0.5 });
+        const matScreenOn = new THREE.MeshBasicMaterial({ color: 0x0066cc });
+
+        // --- 5. OBJECT CREATION & GROUPING ---
+        // To make things draggable, we put distinct items in their own groups.
+
+        const draggableObjects = []; // Array for DragControls
+
+        function createPart(w, h, d, x, y, z, mat, parent) {
+            const geo = new RoundedBoxGeometry(w, h, d, 2, 0.5);
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            parent.add(mesh);
+            return mesh;
+        }
+
+        // --- GROUP A: THE DESK (Main Structure) ---
+        const deskGroup = new THREE.Group();
+        scene.add(deskGroup);
+        draggableObjects.push(deskGroup);
+
+        const W = 160, H = 78, D = 75, THICK = 3.5;
+
+        // 1. Table Top
+        createPart(W, THICK, D, 0, H - THICK/2, 0, matBlackWood, deskGroup);
+
+        // 2. Right Cabinet
+        const cabW = 45;
+        const cabX = (W/2) - (cabW/2) - 4;
+        // Sides
+        createPart(THICK, H-THICK, D-4, (W/2)-THICK/2-4, (H-THICK)/2, 0, matBlackWood, deskGroup); // Outer
+        createPart(THICK, H-THICK, D-4, (W/2)-cabW+THICK/2-4, (H-THICK)/2, 0, matBlackWood, deskGroup); // Inner
+        // Base of Cabinet
+        createPart(cabW, THICK, D-4, cabX, 5, 0, matBlackWood, deskGroup);
+        
+        // 3. Left CPU Enclosure
+        const cpuW = 35;
+        const leftX = -(W/2) + (cpuW/2) + 4;
+        // Outer Leg
+        createPart(THICK, H-THICK, D-4, -(W/2)+THICK/2+4, (H-THICK)/2, 0, matBlackWood, deskGroup);
+        // Inner Leg
+        createPart(THICK, H-THICK, D-4, -(W/2)+cpuW-THICK/2+4, (H-THICK)/2, 0, matBlackWood, deskGroup);
+        // CPU Shelf (Floating slightly)
+        createPart(cpuW-THICK*2, THICK, D-4, leftX, 15, 0, matBlackWood, deskGroup);
+
+        // 4. THE FIX: FULL BACK PANEL (Covering the back gap)
+        // Spans from left leg to right cabinet
+        const spanW = W - 8; 
+        // Positioned at the very back (D/2)
+        // Height: From top (H) down to near floor (5)
+        createPart(spanW, H - THICK - 5, 2.5, 0, (H-THICK+5)/2, -(D/2) + 2.5, matBlackWood, deskGroup);
+
+        // 5. THE FIX: BOTTOM WOODEN PIECE (Completing the table)
+        // A base rail running along the back bottom to box it in
+        createPart(spanW, 8, 4, 0, 4, -(D/2) + 6, matBlackWood, deskGroup);
+
+        // --- INTERACTABLES (Drawers/Trays within the desk group) ---
+        const interactables = [];
+
+        // Keyboard Tray
+        const trayGroup = new THREE.Group();
+        const trayW = W - cabW - cpuW - 12;
+        trayGroup.position.set(-5, H - THICK - 3, 10);
+        deskGroup.add(trayGroup);
+        const trayMesh = createPart(trayW, 2, 28, 0, 0, 0, matBlackWood, trayGroup);
+        trayMesh.userData = { type: 'tray', obj: trayGroup, state: false };
+        interactables.push(trayMesh);
+
+        // Drawer (Right)
+        const drawerGroup = new THREE.Group();
+        drawerGroup.position.set(cabX, H - THICK - 10, D/2);
+        deskGroup.add(drawerGroup);
+        const drawerFace = createPart(cabW-8, 18, 2, 0, 0, 0, matBlackWood, drawerGroup);
+        createPart(14, 1, 1, 0, 0, 1.5, matChrome, drawerGroup); // Handle
+        drawerFace.userData = { type: 'drawer', obj: drawerGroup, state: false };
+        interactables.push(drawerFace);
+
+        // Door (Right Bottom)
+        const doorGroup = new THREE.Group();
+        doorGroup.position.set((W/2)-4-THICK, 30, D/2); // Hinge point
+        deskGroup.add(doorGroup);
+        const doorW = cabW - 8;
+        const doorMesh = createPart(doorW, 40, 2, -doorW/2, 0, 0, matBlackWood, doorGroup);
+        createPart(2, 12, 1, -doorW+6, 5, 1.5, matChrome, doorGroup); // Vertical Handle
+        doorMesh.userData = { type: 'door', obj: doorGroup, state: false };
+        interactables.push(doorMesh);
+
+
+        // --- GROUP B: MONITOR ---
+        const monitorGroup = new THREE.Group();
+        monitorGroup.position.set(0, H, -15);
+        scene.add(monitorGroup);
+        draggableObjects.push(monitorGroup);
+
+        createPart(20, 1, 16, 0, 0, 0, matMatteBlack, monitorGroup); // Stand Base
+        createPart(4, 15, 3, 0, 7.5, -4, matMatteBlack, monitorGroup); // Neck
+        // Screen
+        const screenGroup = new THREE.Group();
+        screenGroup.position.set(0, 22, -2);
+        monitorGroup.add(screenGroup);
+        createPart(60, 34, 3, 0, 0, 0, matMatteBlack, screenGroup); // Bezel
+        const screenGeo = new THREE.PlaneGeometry(58, 32);
+        const screenMesh = new THREE.Mesh(screenGeo, matScreenOn);
+        screenMesh.position.z = 1.6;
+        screenGroup.add(screenMesh);
+
+        // --- GROUP C: KEYBOARD & MOUSE ---
+        const kmGroup = new THREE.Group();
+        kmGroup.position.set(-5, H + 1, 20); // Start on desk
+        scene.add(kmGroup);
+        draggableObjects.push(kmGroup);
+        
+        createPart(44, 1.5, 16, 0, 0, 0, matMatteBlack, kmGroup); // Keyboard
+        createPart(40, 0.5, 14, 0, 1, 0, new THREE.MeshStandardMaterial({color:0x333333}), kmGroup); // Keys area
+        createPart(8, 3, 12, 35, 0, 2, matMatteBlack, kmGroup); // Mouse
+
+        // --- GROUP D: CPU TOWER ---
+        const cpuGroup = new THREE.Group();
+        // Position it nicely inside the shelf we made
+        cpuGroup.position.set(leftX, 15 + THICK + 22, 0);
+        scene.add(cpuGroup);
+        draggableObjects.push(cpuGroup);
+
+        createPart(22, 44, 45, 0, 0, 0, matMatteBlack, cpuGroup); // Case
+        // Visual Details (Grill)
+        createPart(18, 40, 1, 0, 0, 22.6, new THREE.MeshStandardMaterial({color:0x222222}), cpuGroup);
+        // Power Button LED
+        const led = new THREE.Mesh(new THREE.CircleGeometry(2, 16), new THREE.MeshBasicMaterial({color: 0x00ff00}));
+        led.position.set(0, 15, 23.2);
+        cpuGroup.add(led);
+
+
+        // --- 6. CONTROLS & LOGIC ---
+
+        // A. Orbit Controls (Camera)
+        const orbit = new OrbitControls(camera, renderer.domElement);
+        orbit.enableDamping = true;
+        
+        // B. Drag Controls (Moving Objects)
+        const dControls = new DragControls(draggableObjects, camera, renderer.domElement);
+        
+        // Fix: Disable orbit while dragging so camera doesn't spin
+        dControls.addEventListener('dragstart', function (event) {
+            orbit.enabled = false;
+            event.object.material.emissive.set(0x333333); // Highlight
+        });
+        dControls.addEventListener('dragend', function (event) {
+            orbit.enabled = true;
+            event.object.material.emissive.set(0x000000); // Un-highlight
+        });
+
+        // C. Click Interaction (Drawers) - Raycaster
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+
+        window.addEventListener('click', (event) => {
+            // Calculate pointer position
+            pointer.x = (event.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(event.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+
+            // Intersect recursively with desk group
+            const intersects = raycaster.intersectObjects(interactables, false);
+
+            if (intersects.length > 0) {
+                const data = intersects[0].object.userData;
+                if(data.type) {
+                    data.state = !data.state; // Toggle state
+                    
+                    // Animate based on type
+                    if(data.type === 'drawer') {
+                        const targetZ = data.state ? (D/2) + 25 : (D/2);
+                        animateProp(data.obj.position, 'z', targetZ);
+                    }
+                    if(data.type === 'tray') {
+                        const targetZ = data.state ? 30 : 10;
+                        animateProp(data.obj.position, 'z', targetZ);
+                    }
+                    if(data.type === 'door') {
+                        const targetRot = data.state ? Math.PI/2 : 0;
+                        animateProp(data.obj.rotation, 'y', targetRot);
+                    }
+                }
+            }
+        });
+
+        // Simple animation helper
+        function animateProp(vector, axis, target) {
+            const start = vector[axis];
+            const duration = 20; // frames
+            let frame = 0;
+            function step() {
+                frame++;
+                const t = frame/duration;
+                // Ease out cubic
+                const ease = 1 - Math.pow(1 - t, 3);
+                vector[axis] = start + (target - start) * ease;
+                if(frame < duration) requestAnimationFrame(step);
+            }
+            step();
+        }
+
+        // --- 7. ENVIRONMENT ---
+        const grid = new THREE.GridHelper(500, 50, 0xcccccc, 0xe5e5e5);
+        scene.add(grid);
+        const plane = new THREE.Mesh(
+            new THREE.PlaneGeometry(1000, 1000), 
+            new THREE.MeshBasicMaterial({color: 0xf0f0f0, depthWrite: false})
+        );
+        plane.rotation.x = -Math.PI/2;
+        plane.position.y = -0.1;
+        scene.add(plane);
+
+        document.getElementById('btn-reset').addEventListener('click', () => {
+            camera.position.set(200, 150, 200);
+            orbit.target.set(0, H/2, 0);
+        });
+        document.getElementById('loading').style.display = 'none';
+
+        function animate() {
+            requestAnimationFrame(animate);
+            orbit.update();
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+
+    </script>
+</body>
+</html>
