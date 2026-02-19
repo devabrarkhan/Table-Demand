@@ -1,140 +1,319 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Table Design</title>
+<!DOCTYPE html><html lang="en"><head> <meta charset="UTF-8">  <meta name="viewport" content="width=device-width, initial-scale=1.0">    <title>Abrar's Table Demand</title>    <style>       body { margin: 0; overflow: hidden; background-color: #ffffff; font-family: 'Segoe UI', sans-serif; }       /* Clean UI */       #ui-container {            position: absolute; top: 20px; left: 20px;           width: 280px;            pointer-events: none;            display: flex; flex-direction: column; gap: 10px;            z-index: 10;        }        .card {            background: rgba(255, 255, 255, 0.95);            color: #111;            padding: 15px 20px;            border-radius: 10px;            border: 1px solid #e5e5e5;            box-shadow: 0 10px 30px rgba(0,0,0,0.08);            pointer-events: auto;        }        h1 { margin: 0 0 5px 0; font-size: 18px; font-weight: 700; color: #222; }        p { margin: 0 0 15px 0; font-size: 13px; color: #666; line-height: 1.4; }        button {            background: #007AFF; color: white; border: none;            padding: 10px 0; border-radius: 6px; font-weight: 600; font-size: 13px;            cursor: pointer; transition: background 0.2s; width: 100%;        }        button:hover { background: #0056b3; }        button.secondary { background: #f2f2f7; color: #333; margin-top: 8px; }        button.secondary:hover { background: #e5e5ea; }        #loading {            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);            font-size: 14px; color: #888; pointer-events: none    </style>   <script type="importmap">        {            "imports": {                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"            }        }    </script></head><body>    <div id="ui-container">       <div class="card">            <h1>Abrar's Table Demand</h1>    <p> If you liked this, Hire me via visiting <strong><a href="https://constabrar.in/">constabrar.in</a> or via whatsapp <a href="https://wa.me/918637213741?text=Hello%20Constant%20Abrar,%20I%20want%20a%203d%20model%20web%20page%20for%20my%20product!">+91 8637213741</a></strong>. Starting @499 per product.</p>            <button id="btn-computer">Toggle Computer Kit</button>
+            <button class="secondary" id="btn-reset">Reset Camera</button>
+        </div>
+    
+    </div>
+    
+    <div id="loading">Rendering High-Fidelity Scene...</div>
 
-<style>
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family:Arial, sans-serif;
-}
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 
-body{
-height:100vh;
-display:flex;
-justify-content:center;
-align-items:center;
-background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
-overflow:hidden;
-}
+        // --- 1. PRO TEXTURES (Lighter & Cleaner) ---
+        function createWoodTexture() {
+            const size = 1024;
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
 
-/* Background Liquid Blobs */
-.blob{
-position:absolute;
-width:450px;
-height:450px;
-border-radius:50%;
-filter:blur(100px);
-animation:blobMove 15s infinite alternate ease-in-out;
-}
+            // Base Color: Medium Walnut (Lighter than before for better visibility)
+            ctx.fillStyle = '#8D6E63'; 
+            ctx.fillRect(0, 0, size, size);
 
-.blob1{
-background:linear-gradient(45deg,#00f5ff,#0077ff);
-top:-100px;
-left:-100px;
-}
+            // Grain
+            ctx.globalAlpha = 0.15;
+            ctx.strokeStyle = '#3E2723'; // Darker brown grain
+            ctx.lineWidth = 3;
 
-.blob2{
-background:linear-gradient(45deg,#ff00cc,#ff6600);
-bottom:-100px;
-right:-100px;
-animation-delay:4s;
-}
+            for (let i = 0; i < 600; i++) {
+                ctx.beginPath();
+                const x = Math.random() * size;
+                ctx.moveTo(x, 0);
+                ctx.bezierCurveTo(x + (Math.random()-0.5)*100, size/3, x + (Math.random()-0.5)*100, size*0.6, x + (Math.random()-0.5)*200, size);
+                ctx.stroke();
+            }
+            
+            // Subtle Noise for realism
+            const id = ctx.getImageData(0,0,size,size);
+            const d = id.data;
+            for(let i=0; i<d.length; i+=4){
+                const n = (Math.random()-0.5)*15;
+                d[i]+=n; d[i+1]+=n; d[i+2]+=n;
+            }
+            ctx.putImageData(id,0,0);
 
-@keyframes blobMove{
-0%{transform:translate(0,0) scale(1);}
-50%{transform:translate(120px,-80px) scale(1.2);}
-100%{transform:translate(-80px,120px) scale(0.9);}
-}
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping; tex.wrapT = THREE.RepeatWrapping;
+            tex.anisotropy = 16;
+            return tex;
+        }
 
-/* Glass Container */
-.container{
-position:relative;
-z-index:10;
-display:flex;
-gap:30px;
-flex-direction:column;
-}
+        // --- 2. SCENE & LIGHTING (Studio Setup) ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff); // Pure White
+        // NO FOG - This ensures clarity on white background
 
-/* Liquid Glass Button */
-.liquid-btn{
-position:relative;
-padding:16px 40px;
-border:none;
-border-radius:50px;
-cursor:pointer;
-font-size:16px;
-color:white;
-background:rgba(255,255,255,0.1);
-backdrop-filter:blur(20px);
-border:1px solid rgba(255,255,255,0.3);
-overflow:hidden;
-transition:0.4s ease;
-}
+        const camera = new THREE.PerspectiveCamera(35, window.innerWidth / window.innerHeight, 0.1, 2000);
+        camera.position.set(150, 110, 170); // Isometric starting view
 
-/* Animated Liquid Inside */
-.liquid-btn::before{
-content:"";
-position:absolute;
-width:180%;
-height:250%;
-top:50%;
-left:50%;
-transform:translate(-50%,-50%) rotate(0deg);
-border-radius:45%;
-animation:rotate 7s linear infinite;
-z-index:-1;
-opacity:0.8;
-}
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Soft shadows
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.1;
+        document.body.appendChild(renderer.domElement);
 
-/* Different gradient for each button */
-.btn1::before{
-background:linear-gradient(45deg,#00f5ff,#0077ff,#00f5ff);
-}
+        // -- PERFECT LIGHTING FOR WHITE BG --
+        // 1. Ambient: Bright enough to see details in shadows
+        scene.add(new THREE.AmbientLight(0xffffff, 0.75));
 
-.btn2::before{
-background:linear-gradient(45deg,#ff00cc,#ff6600,#ff00cc);
-}
+        // 2. Main Sun (Key Light): Warm, casting defined shadows
+        const mainLight = new THREE.DirectionalLight(0xfffaf0, 1.2);
+        mainLight.position.set(80, 150, 60);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048; mainLight.shadow.mapSize.height = 2048;
+        mainLight.shadow.bias = -0.0001;
+        // Large shadow area
+        const d = 120;
+        mainLight.shadow.camera.left = -d; mainLight.shadow.camera.right = d;
+        mainLight.shadow.camera.top = d; mainLight.shadow.camera.bottom = -d;
+        scene.add(mainLight);
 
-@keyframes rotate{
-0%{transform:translate(-50%,-50%) rotate(0deg);}
-100%{transform:translate(-50%,-50%) rotate(360deg);}
-}
+        // 3. Fill Light: Cool, from the left to fill dark spots
+        const fillLight = new THREE.DirectionalLight(0xeef5ff, 0.6);
+        fillLight.position.set(-80, 50, -40);
+        scene.add(fillLight);
 
-.liquid-btn:hover{
-transform:scale(1.08);
-box-shadow:0 10px 30px rgba(0,0,0,0.4);
-}
+        // --- 3. MATERIALS ---
+        const texWood = createWoodTexture();
+        const matWood = new THREE.MeshStandardMaterial({ 
+            map: texWood, color: 0xffffff, roughness: 0.5, metalness: 0.05 
+        });
+        const matMetalDark = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.8 });
+        const matChrome = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0, metalness: 1.0 });
+        const matPlasticBlack = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.7, metalness: 0.1 });
+        const matScreen = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.2, metalness: 0.8 });
+        const matScreenOn = new THREE.MeshBasicMaterial({ color: 0x1565C0 }); // Nice blue screen
 
-</style>
-</head>
+        // --- 4. GEOMETRY HELPERS ---
+        const deskGroup = new THREE.Group();
+        scene.add(deskGroup);
+        const interactables = [];
 
-<body>
+        function createPart(w, h, d, x, y, z, mat, r=0.2) {
+            const geo = new RoundedBoxGeometry(w, h, d, 4, r);
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(x, y, z);
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            return mesh;
+        }
 
-<div class="blob blob1"></div>
-<div class="blob blob2"></div>
+        // --- 5. BUILDING THE DESK (V4) ---
+        const W = 140, H = 76, D = 70, THICK = 3.0;
 
-<div class="container">
-<button class="liquid-btn btn1" onclick="goSite1()">
-View Only</button>
+        // A. Table Top
+        deskGroup.add(createPart(W, THICK, D, 0, H - THICK/2, 0, matWood, 0.5));
 
-<button class="liquid-btn btn2" onclick="goSite2()">
-Feel Drag & Drop </button>
-</div>
+        // B. Modesty Panel (Back) - Full coverage
+        deskGroup.add(createPart(W - 10, 40, 2, 0, H - THICK - 20, -(D/2) + 2, matWood));
 
-<script>
-function goSite1(){
-window.location.href="/view/";
-}
+        // C. RIGHT CABINET (Complete Box)
+        const cabW = 42;
+        const cabX = (W/2) - (cabW/2) - 2;
+        // Side walls
+        deskGroup.add(createPart(THICK, H-THICK, D-4, (W/2)-THICK/2-2, (H-THICK)/2, 0, matWood)); // Outer right
+        deskGroup.add(createPart(THICK, H-THICK, D-4, (W/2)-cabW+THICK/2-2, (H-THICK)/2, 0, matWood)); // Inner right
+        // Bottom Base
+        deskGroup.add(createPart(cabW, THICK, D-4, cabX, 6, 0, matWood));
+        // Kickplate
+        deskGroup.add(createPart(cabW-4, 6, 1, cabX, 3, (D/2)-4, matMetalDark));
 
-function goSite2(){
-window.location.href="/drag-drop/";
-}
-</script>
+        // C1. Drawer (Interactive)
+        const drawerGroup = new THREE.Group();
+        const drawerH = 16;
+        drawerGroup.position.set(cabX, H - THICK - drawerH/2 - 1, (D/2));
+        deskGroup.add(drawerGroup);
+        const drawerFace = createPart(cabW-6, drawerH-1, 2, 0, 0, 0, matWood);
+        drawerFace.userData = { type: 'drawer', obj: drawerGroup };
+        interactables.push(drawerFace);
+        drawerGroup.add(drawerFace);
+        drawerGroup.add(createPart(12, 1, 1.5, 0, 0, 1.5, matChrome)); // Handle
+        // Drawer Box (visible when open)
+        drawerGroup.add(createPart(cabW-8, 10, 45, 0, 0, -24, matMetalDark)); 
 
+        // C2. Door (Interactive)
+        const doorGroup = new THREE.Group();
+        const doorH = H - THICK - drawerH - 8; 
+        const hingeX = (W/2) - 2 - THICK; 
+        doorGroup.position.set(hingeX, 6 + doorH/2, (D/2)); // Pivot point
+        deskGroup.add(doorGroup);
+        const doorW = cabW - THICK*2;
+        const doorMesh = createPart(doorW, doorH, 2, -doorW/2, 0, 0, matWood);
+        doorMesh.userData = { type: 'door', obj: doorGroup };
+        interactables.push(doorMesh);
+        doorGroup.add(doorMesh);
+        // Vertical Handle
+        doorGroup.add(createPart(1, 12, 1.5, -doorW + 5, 5, 1.5, matChrome));
+
+        // D. LEFT SIDE: CPU SHELF & LEG (The requested area)
+        const leftLegX = -(W/2) + THICK/2 + 2;
+        // Main Leg
+        deskGroup.add(createPart(THICK, H-THICK, D-4, leftLegX, (H-THICK)/2, 0, matWood));
+        
+        // CPU Shelf Panel (Attached to left leg, creating a cubby)
+        const cpuShelfW = 28;
+        const innerLegX = leftLegX + cpuShelfW;
+        // Inner support leg for CPU area
+        deskGroup.add(createPart(THICK, H-THICK, D-10, innerLegX, (H-THICK)/2, 0, matWood));
+        // The Shelf itself (Raised off floor)
+        deskGroup.add(createPart(cpuShelfW, THICK, D-10, leftLegX + cpuShelfW/2, 12, 0, matWood));
+
+        // E. KEYBOARD TRAY (The requested missing part)
+        const trayGroup = new THREE.Group();
+        // Centered between left structure and right cabinet
+        const trayW = (W - cabW - cpuShelfW - 15); 
+        const trayX = -(W/2) + cpuShelfW + trayW/2 + 8;
+        trayGroup.position.set(trayX, H - THICK - 4, 10);
+        deskGroup.add(trayGroup);
+        
+        const trayBoard = createPart(trayW, 1.5, 25, 0, 0, 0, matWood, 0.1);
+        trayBoard.userData = { type: 'tray', obj: trayGroup };
+        interactables.push(trayBoard);
+        trayGroup.add(trayBoard);
+        // Rails (Visual)
+        deskGroup.add(createPart(1, 3, 25, trayX - trayW/2 - 0.5, H-THICK-3, 10, matMetalDark));
+        deskGroup.add(createPart(1, 3, 25, trayX + trayW/2 + 0.5, H-THICK-3, 10, matMetalDark));
+
+
+        // --- 6. FULL COMPUTER SETUP (Detailed) ---
+        const pcGroup = new THREE.Group();
+        pcGroup.visible = false; // Hidden by default
+        deskGroup.add(pcGroup);
+
+        // 1. Monitor
+        const monGroup = new THREE.Group();
+        monGroup.position.set(0, H, -15);
+        pcGroup.add(monGroup);
+        // Stand
+        monGroup.add(createPart(18, 0.5, 14, 0, 0.25, 0, matMetalDark));
+        monGroup.add(createPart(4, 12, 2, 0, 6, -5, matMetalDark));
+        // Screen
+        const screenBezel = createPart(55, 32, 2, 0, 20, -3, matPlasticBlack, 0.5);
+        monGroup.add(screenBezel);
+        const panel = new THREE.Mesh(new THREE.PlaneGeometry(53, 30), matScreenOn);
+        panel.position.set(0, 20, -1.9);
+        monGroup.add(panel);
+        // Webcam
+        monGroup.add(createPart(5, 1, 1, 0, 36.5, -3, matPlasticBlack));
+
+        // 2. Keyboard (Placed on the Tray)
+        const kbGroup = new THREE.Group();
+        kbGroup.position.set(trayX, H - THICK - 4 + 1, 10); // Matches tray position
+        pcGroup.add(kbGroup);
+        kbGroup.add(createPart(42, 0.8, 14, 0, 0, 0, matPlasticBlack)); // Base
+        // Keys visual approximation
+        const keyMat = new THREE.MeshStandardMaterial({color: 0x333333, roughness: 0.5});
+        kbGroup.add(createPart(40, 0.5, 12, 0, 0.6, 0, keyMat, 0.1));
+
+        // 3. Mouse (On Desktop)
+        pcGroup.add(createPart(7, 2.5, 11, 35, H+1.5, 15, matPlasticBlack, 1.5));
+
+        // 4. CPU Tower (Placed on the Left Shelf)
+        const towerGroup = new THREE.Group();
+        // Position: On the shelf (Height 12 + thickness)
+        towerGroup.position.set(leftLegX + cpuShelfW/2, 12 + THICK + 22, 0); 
+        pcGroup.add(towerGroup);
+        
+        // Case
+        towerGroup.add(createPart(20, 44, 42, 0, 0, 0, matPlasticBlack));
+        // Front Grill
+        towerGroup.add(createPart(16, 40, 1, 0, 0, 21.5, matMetalDark));
+        // RGB Fan glow (Visual only)
+        const fan = new THREE.Mesh(new THREE.CircleGeometry(6, 32), new THREE.MeshBasicMaterial({color: 0x00ffcc}));
+        fan.position.set(0, -5, 22.1);
+        towerGroup.add(fan);
+
+
+        // --- 7. ENVIRONMENT ---
+        // Shadow Plane (Invisible but catches shadows)
+        const planeGeo = new THREE.PlaneGeometry(500, 500);
+        const planeMat = new THREE.ShadowMaterial({ opacity: 0.15 }); 
+        const plane = new THREE.Mesh(planeGeo, planeMat);
+        plane.rotation.x = -Math.PI/2;
+        scene.add(plane);
+        
+        // Very subtle grid, barely visible, just for grounding
+        const grid = new THREE.GridHelper(500, 50, 0xe0e0e0, 0xf5f5f5);
+        scene.add(grid);
+
+
+        // --- 8. LOGIC & ANIMATION ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.maxPolarAngle = Math.PI/2 - 0.05;
+        controls.target.set(0, H/2, 0);
+
+        const state = { drawer: false, door: false, tray: false, pc: false };
+
+        // Raycaster
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+
+        window.addEventListener('pointerdown', (e) => {
+            if(e.target.closest('#ui-container')) return;
+            pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+            pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            const hits = raycaster.intersectObjects(interactables);
+            if(hits.length > 0) {
+                const type = hits[0].object.userData.type;
+                if(type === 'drawer') state.drawer = !state.drawer;
+                if(type === 'door') state.door = !state.door;
+                if(type === 'tray') state.tray = !state.tray;
+            }
+        });
+
+        document.getElementById('btn-computer').addEventListener('click', (e) => {
+            state.pc = !state.pc;
+            pcGroup.visible = state.pc;
+            e.target.textContent = state.pc ? "Hide Computer Kit" : "Toggle Computer Kit";
+            // Also extend tray if PC is added
+            if(state.pc) state.tray = true;
+        });
+
+        document.getElementById('btn-reset').addEventListener('click', () => controls.reset());
+        document.getElementById('loading').style.display = 'none';
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+
+            // Smooth Animations (Lerp)
+            const dZ = state.drawer ? (D/2) + 20 : (D/2);
+            drawerGroup.position.z += (dZ - drawerGroup.position.z) * 0.1;
+
+            const rotY = state.door ? Math.PI/2.2 : 0;
+            doorGroup.rotation.y += (rotY - doorGroup.rotation.y) * 0.1;
+
+            // Tray Animation (Slide out Z)
+            const tZ = state.tray ? 25 : 10;
+            trayGroup.position.z += (tZ - trayGroup.position.z) * 0.1;
+            kbGroup.position.z = trayGroup.position.z; // Keyboard follows tray
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
 </body>
 </html>
+
